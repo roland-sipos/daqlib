@@ -9,6 +9,8 @@
 #include "appfwk/DAQSource.hpp"
 #include "appfwk/ThreadHelper.hpp"
 
+#include "Foo.hpp"
+
 #include <future>
 #include <memory>
 #include <string>
