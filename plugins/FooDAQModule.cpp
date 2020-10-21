@@ -32,26 +32,24 @@ FooDAQModule::FooDAQModule(const std::string& name)
   register_command("stop", &FooDAQModule::do_stop);
 }
 
-void
-FooDAQModule::init()
+void FooDAQModule::init(const data_t &)
+{
+
+}
+
+void FooDAQModule::do_configure(const data_t & /*args*/)
 {
 
 }
 
 void
-FooDAQModule::do_configure(const std::vector<std::string>& /*args*/)
+FooDAQModule::do_start(const data_t & /*args*/)
 {
 
 }
 
 void
-FooDAQModule::do_start(const std::vector<std::string>& /*args*/)
-{
-
-}
-
-void
-FooDAQModule::do_stop(const std::vector<std::string>& /*args*/)
+FooDAQModule::do_stop(const data_t & /*args*/)
 {
 
 }

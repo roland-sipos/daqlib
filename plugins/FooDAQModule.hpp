@@ -41,14 +41,14 @@ public:
   FooDAQModule& operator=(FooDAQModule&&) =
     delete; ///< FooDAQModule is not move-assignable
 
-  void init() override;
+  void init(const data_t &) override;
 
 private:
-  // Commands
-  void do_configure(const std::vector<std::string>& args);
-  void do_start(const std::vector<std::string>& args);
-  void do_stop(const std::vector<std::string>& args);
 
+  // Commands
+  void do_configure(const data_t &data);
+  void do_start(const data_t &data);
+  void do_stop(const data_t &data);
 };
 
 } // namespace daqlib
