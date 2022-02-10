@@ -14,8 +14,6 @@
 #include <iostream>
 #include <sstream>
 
-//using namespace dunedaq::rubberdaq;
-
 std::string int_to_string(int num) {
   std::cout << "My number is: " << num << '\n';
   std::stringstream ss;
@@ -23,25 +21,44 @@ std::string int_to_string(int num) {
   return ss.str();
 }
 
+int string_to_int(std::string str) {
+  std::cout << "String is: " << str << '\n';
+  std::stringstream ss(str);
+  int num = 0;
+  ss >> num;
+  return num;
+}
+
 int
 main(int /*argc*/, char** /*argv[]*/)
 {
-
-  std::string test_data("foobar");
-
   std::function<bool(std::string&)> string_to_cout = [&](std::string& str) {
     std::cout << "My string is: " << str;
     return true;
   };
 
+  // SerializerRegistry
   dunedaq::rubberdaq::SerializerRegistry serreg;
 
+  // Register serializers for integer
   serreg.register_serializer<int>(int_to_string);
+  serreg.register_deserializer<int>(string_to_int);
+
+  // Serialize
   std::string as_str = serreg.get_serializer<int>().call<std::string>(5);
-  std::cout << "Serialized: " << as_str << '\n';
+  TLOG() << "Serialized: " << as_str;
 
-  //serreg.register_serializer(test_data, string_to_cout);
+  // Deserialize
+  int as_int = serreg.get_deserializer<int>().call<int>(std::string(as_str));
+  TLOG() << "Deserialized: " << as_int;
 
+  // Access to GenericCallback for re-use
+  auto& int_deser = serreg.get_deserializer<int>();
+  // std::any args
+  std::vector<std::any> args = { { std::string("12345") } };
+  // call with std::any args
+  std::any result = int_deser.callAny(args);
+  TLOG() << "result for any cast = " << std::any_cast<int>(result);
 
   // Exit
   TLOG() << "Exiting.";

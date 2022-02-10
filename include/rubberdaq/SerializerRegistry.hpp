@@ -23,8 +23,8 @@ public:
     m_serializers[std::type_index(typeid(Datatype))] = f;
   }
 
-  template<typename Datatype, typename Function, typename... Args>
-  void register_deserializer(Function&& f, Args&&... args) {
+  template<typename Datatype, typename Function>
+  void register_deserializer(Function&& f) {
     m_deserializers[std::type_index(typeid(Datatype))] = f;
   }
 
