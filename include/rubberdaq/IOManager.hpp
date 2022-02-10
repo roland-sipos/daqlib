@@ -7,6 +7,10 @@
 
 #include "nlohmann/json.hpp"
 
+#include "rubberdaq/ConnectionID.hpp"
+#include "rubberdaq/SerializerRegistry.hpp"
+#include "rubberdaq/Sender.hpp"
+
 #include <map>
 #include <mutex>
 #include <type_traits>
@@ -14,138 +18,55 @@
 namespace dunedaq {
 namespace rubberdaq {
 
-class IOManager : public daqling::utilities::Singleton<IOManager> {
-
-public:
-  IOManager() : m_receiver_channels{0}, m_sender_channels{0} {}
-  // Custom types
-  using SizeStatMap = std::map<unsigned, std::atomic<size_t>>;
-  using SubManagerMap = std::map<std::string, std::shared_ptr<ConnectionSubManager>>;
-  // Teardown
-  bool removeChannel(const std::string &name);
-  // Add a channel (sockets and queues)
-  bool addSenderChannel(const std::string & /*key*/, const nlohmann::json &j);
-  bool addReceiverChannel(const std::string & /*key*/, const nlohmann::json &j);
-
-  // Utilities
-  ConnectionSubManager &addSubManager(std::string key);
-
-  // Start/stop socket processors
-  bool start(const std::string &name);
-  bool stop(const std::string &name);
-
-  std::shared_ptr<daqling::utilities::Resource> getLocalResource(unsigned id);
-
-private:
-  // Map of ConnectionSubManagers
-  SubManagerMap m_sub_managers;
-  size_t m_receiver_channels;
-  size_t m_sender_channels;
-
-  std::mutex m_mutex;
-  std::mutex m_mtx_cleaning;
-};
-
 /*
- * ConnectionSubManager
+ * IOManager
  * Description: Wrapper class for sockets and SPSC circular buffers.
  *   Makes the communication between DAQ processes easier and scalable.
  * Date: May 2021
  */
-class ConnectionSubManager {
-  friend class IOManager;
+class IOManager {
 
 public:
-  using SenderMap = std::map<unsigned, std::shared_ptr<Sender>>;
-  using ReceiverMap = std::map<unsigned, std::shared_ptr<Receiver>>;
 
-  ConnectionSubManager(std::string name);
-  /**
-   * @brief Receive binary from receiver channel.
-   * @param bin Datatype to receive into. Its current inner data will be cleared before passing it
-   * on.
-   * @param chn receiver channel id
-   * @return true when binary file is successfully passed
-   */
-  template <class T> bool receive(const unsigned &chn, T &bin) {
-    if (bin.size() != 0) {
-      bin.clear_inner_data();
+  IOManager(){}
+
+  IOManager(const IOManager&) = delete;            ///< IOManager is not copy-constructible
+  IOManager& operator=(const IOManager&) = delete; ///< IOManager is not copy-assignable
+  IOManager(IOManager&&) = delete;                 ///< IOManager is not move-constructible
+  IOManager& operator=(IOManager&&) = delete;      ///< IOManager is not move-assignable
+
+  template<typename Datatype>
+  std::shared_ptr<Sender>& get_sender(ConnectionID conn_id) {
+    if (m_senders.count(conn_id)) {
+      return m_senders[conn_id];
+    } else {
+      // create from lookup service's factory function
+      // based on connID we know if it's queue or network
+      if (true) { //
+        m_senders[conn_id] = std::make_shared<Sender>(QueueSenderModel(conn_id));
+      }
     }
-    DataTypeWrapper msg(bin);
-    bool retval = m_receivers[chn]->receive(msg);
-    if (retval) {
-      msg.transfer_into(bin);
-      return true;
-    }
-    return false;
-  }
-  /**
-   * @brief Sleep receive binary from receiver channel.
-   * @param bin Datatype to receive into. Its current inner data will be cleared before passing it
-   * on.
-   * @param chn receiver channel id
-   * @return true when binary file is successfully passed
-   */
-  template <class T> bool sleep_receive(const unsigned &chn, T &bin) {
-    if (bin.size() != 0) {
-      bin.clear_inner_data();
-    }
-    DataTypeWrapper msg(bin);
-    bool retval = m_receivers[chn]->sleep_receive(msg);
-    if (retval) {
-      msg.transfer_into(bin);
-      return true;
-    }
-    return false;
-  }
-  /**
-   * @brief Send binary to channel
-   * @param chn sender channel id
-   * @param msgBin DataType with inner data to send.
-   * @return true when binary file is successfully passed
-   */
-  template <class T> bool send(const unsigned &chn, T &msgBin) {
-    DataTypeWrapper msg(std::move(msgBin));
-    return m_senders[chn]->send(msg);
-  }
-  /**
-   * @brief Sleep send binary to channel
-   * @param chn sender channel id
-   * @param msgBin DataType with inner data to send.
-   * @return true when binary file is successfully passed
-   */
-  template <class T> bool sleep_send(const unsigned &chn, T &msgBin) {
-    DataTypeWrapper msg(std::move(msgBin));
-    return m_senders[chn]->sleep_send(msg);
   }
 
-  /**
-   * @brief Set sleep duration for receiver
-   * @param chn receiver channel id
-   * @param ms delay in ms
-   */
-  void set_receiver_sleep_duration(const unsigned &chn, uint ms);
-  /**
-   * @brief Set sleep duration for sender
-   * @param chn sender channel id
-   * @param ms delay in ms
-   */
-  void set_sender_sleep_duration(const unsigned &chn, uint ms);
-
-  bool removeReceiverChannel(unsigned chn);
-  bool removeSenderChannel(unsigned chn);
-  // Utilities
-  const SenderMap getSenderMap() { return m_senders; }
-  const ReceiverMap getReceiverMap() { return m_receivers; }
-  const std::string getType() { return m_type; }
+  /*
+  template<typename Datatype>
+  std::shared_ptr<Receiver>& get_receiver(ConnectionID conn_id) {
+    if (m_receivers.count(conn_id)) {
+      return m_receivers[conn_id];
+    } else {
+      // create from lookup service
+    }
+  }
+  */
 
 private:
+  using SenderMap = std::map<ConnectionID, std::shared_ptr<Sender>>;
+  //using ReceiverMap = std::map<ConnectionID, std::shared_ptr<Receiver>>;
+
   SenderMap m_senders;
-  ReceiverMap m_receivers;
-  size_t m_receiver_channels{};
-  size_t m_sender_channels{};
-  std::string m_name;
-  std::string m_type;
+  //ReceiverMap m_receivers;
+  SerializerRegistry m_serdes_reg;
+
 };
 
 } // namespace rubberdaq

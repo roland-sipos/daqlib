@@ -8,6 +8,8 @@
  */
 #include "logging/Logging.hpp"
 
+#include "rubberdaq/IOManager.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -18,6 +20,9 @@
 int
 main(int /*argc*/, char** /*argv[]*/)
 {
+
+  dunedaq::rubberdaq::IOManager iom;
+
 
   int runsecs = 5;
 
