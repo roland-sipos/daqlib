@@ -22,7 +22,7 @@
 #define TRACE_NAME "FooDAQModule" // NOLINT
 
 namespace dunedaq {
-namespace daqlib {
+namespace rubberdaq {
 
 FooDAQModule::FooDAQModule(const std::string& name)
   : DAQModule(name)
@@ -54,7 +54,7 @@ FooDAQModule::do_stop(const data_t & /*args*/)
 
 }
 
-} // namespace daqlib
+} // namespace rubberdaq
 } // namespace dunedaq
 
-DEFINE_DUNE_DAQ_MODULE(dunedaq::daqlib::FooDAQModule)
+DEFINE_DUNE_DAQ_MODULE(dunedaq::rubberdaq::FooDAQModule)

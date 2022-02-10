@@ -2,13 +2,13 @@
  * @file DummyFunctionality.hpp
  */
 
-#ifndef APPFWK_DAQLIB_FOO_HPP_
-#define APPFWK_DAQLIB_FOO_HPP_
+#ifndef RUBBERDAQ_SRC_FOO_HPP_
+#define RUBBERDAQ_SRC_FOO_HPP_
 
 // From appfwk
 #include "appfwk/DAQSource.hpp"
 
-namespace dunedaq::daqlib {
+namespace dunedaq::rubberdaq {
 
 class Foo
 {
@@ -17,6 +17,6 @@ public:
 
 };
 
-} // namespace dunedaq::daqlib
+} // namespace dunedaq::rubberdaq
 
-#endif // APPFWK_DAQLIB_DUMMYFUNCTIONALITY_HPP_
+#endif // RUBBERDAQ_SRC_FOO_HPP_

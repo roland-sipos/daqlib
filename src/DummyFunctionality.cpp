@@ -15,7 +15,7 @@
 using json = nlohmann::json;
 
 namespace dunedaq {
-namespace daqlib {
+namespace rubberdaq {
 
 void
 DummyFunctionality::do_something()
@@ -28,6 +28,6 @@ DummyFunctionality::do_something()
 
 }
 
-} // namespace daqlib
+} // namespace rubberdaq
 } // namespace dunedaq
 

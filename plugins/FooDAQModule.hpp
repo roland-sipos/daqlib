@@ -2,8 +2,8 @@
  * @file FooDAQModule.hpp
  */
 
-#ifndef APPFWK_DAQLIB_FOODAQMODULE_HPP_
-#define APPFWK_DAQLIB_FOODAQMODULE_HPP_
+#ifndef RUBBERDAQ_PLUGINS_FOODAQMODULE_HPP_
+#define RUBBERDAQ_PLUGINS_FOODAQMODULE_HPP_
 
 #include "appfwk/DAQModule.hpp"
 #include "appfwk/DAQSource.hpp"
@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-namespace dunedaq::daqlib {
+namespace dunedaq::rubberdaq {
 
 /**
  * @brief FooDAQModule Dummy DAQ Module for testing
@@ -53,6 +53,6 @@ private:
   void do_stop(const data_t &data);
 };
 
-} // namespace daqlib
+} // namespace dunedaq::rubberdaq
 
-#endif // APPFWK_DAQLIB_FOODAQMODULE_HPP_
+#endif // RUBBERDAQ_PLUGINS_FOODAQMODULE_HPP_
