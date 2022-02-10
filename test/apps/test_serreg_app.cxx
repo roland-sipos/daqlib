@@ -15,14 +15,12 @@
 #include <sstream>
 
 std::string int_to_string(int num) {
-  std::cout << "My number is: " << num << '\n';
   std::stringstream ss;
   ss << num;
   return ss.str();
 }
 
 int string_to_int(std::string str) {
-  std::cout << "String is: " << str << '\n';
   std::stringstream ss(str);
   int num = 0;
   ss >> num;
@@ -32,7 +30,7 @@ int string_to_int(std::string str) {
 int
 main(int /*argc*/, char** /*argv[]*/)
 {
-  std::function<bool(std::string&)> string_to_cout = [&](std::string& str) {
+  std::function<bool(std::string)> string_to_cout = [&](std::string str) {
     std::cout << "My string is: " << str;
     return true;
   };
