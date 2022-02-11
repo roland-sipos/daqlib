@@ -9,6 +9,8 @@
 #include "logging/Logging.hpp"
 
 #include "rubberdaq/IOManager.hpp"
+#include "rubberdaq/ConnectionID.hpp"
+#include "rubberdaq/Sender.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -23,25 +25,19 @@ main(int /*argc*/, char** /*argv[]*/)
 
   dunedaq::rubberdaq::IOManager iom;
 
+  dunedaq::rubberdaq::ConnectionID cid;
+  cid.m_service_type = "queue";
+  cid.m_service_name = "input1";
+  cid.m_topic = "";
 
-  int runsecs = 5;
+  int msg = 5;
+  iom.get_sender<int>(cid)->send(msg);
 
-  // Run marker
-  std::atomic<bool> marker{ true };
+  auto sender = iom.get_sender<std::string>(cid);
+  std::cout << "Type: " << typeid(sender).name() << '\n';
 
-  TLOG() << "Application will terminate in few seconds...";
-
-  // Killswitch that flips the run marker
-  auto killswitch = std::thread([&]() {
-    std::this_thread::sleep_for(std::chrono::seconds(runsecs));
-    marker.store(false);
-  });
-
-  // Join local threads
-  TLOG() << "Flipping killswitch in order to stop...";
-  if (killswitch.joinable()) {
-    killswitch.join();
-  }
+  std::string asd("asd");
+  sender->send(asd);
 
   // Exit
   TLOG() << "Exiting.";

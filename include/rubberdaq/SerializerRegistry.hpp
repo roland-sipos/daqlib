@@ -19,7 +19,6 @@ class SerializerRegistry {
 public: 
 
   SerializerRegistry(){}
-
   SerializerRegistry(const SerializerRegistry&) = delete;            ///< SerializerRegistry is not copy-constructible
   SerializerRegistry& operator=(const SerializerRegistry&) = delete; ///< SerializerRegistry is not copy-assignable
   SerializerRegistry(SerializerRegistry&&) = delete;                 ///< SerializerRegistry is not move-constructible
@@ -38,17 +37,19 @@ public:
   template<typename Datatype>
   GenericCallback& get_serializer(){
     auto tidx = std::type_index(typeid(Datatype));
-    if (m_serializers.count(tidx)) {
-      return m_serializers[tidx];
+    if (!m_serializers.count(tidx)) {
+      // throw error
     }
+    return m_serializers[tidx];
   }
 
   template<typename Datatype>
   GenericCallback& get_deserializer(){
     auto tidx = std::type_index(typeid(Datatype));
-    if (m_deserializers.count(tidx)) {
-      return m_deserializers[tidx];
+    if (!m_deserializers.count(tidx)) {
+      // throw error
     }
+    return m_deserializers[tidx];
   }
 
 private:

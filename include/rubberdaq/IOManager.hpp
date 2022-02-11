@@ -12,8 +12,7 @@
 #include "rubberdaq/Sender.hpp"
 
 #include <map>
-#include <mutex>
-#include <type_traits>
+#include <memory>
 
 namespace dunedaq {
 namespace rubberdaq {
@@ -22,7 +21,6 @@ namespace rubberdaq {
  * IOManager
  * Description: Wrapper class for sockets and SPSC circular buffers.
  *   Makes the communication between DAQ processes easier and scalable.
- * Date: May 2021
  */
 class IOManager {
 
@@ -36,16 +34,17 @@ public:
   IOManager& operator=(IOManager&&) = delete;      ///< IOManager is not move-assignable
 
   template<typename Datatype>
-  std::shared_ptr<Sender>& get_sender(ConnectionID conn_id) {
-    if (m_senders.count(conn_id)) {
-      return m_senders[conn_id];
-    } else {
+  SenderConcept<Datatype>* get_sender(ConnectionID conn_id) {
+    if (!m_senders.count(conn_id)) {
       // create from lookup service's factory function
       // based on connID we know if it's queue or network
-      if (true) { //
-        m_senders[conn_id] = std::make_shared<Sender>(QueueSenderModel(conn_id));
+      if (true) { // if queue
+        m_senders[conn_id] = std::make_unique<Sender>(NetworkSenderModel<Datatype>(conn_id));
+        return dynamic_cast<NetworkSenderModel<Datatype>*>(m_senders[conn_id].get());       
       }
     }
+
+    return dynamic_cast<SenderConcept<Datatype>*>(m_senders[conn_id].get());
   }
 
   /*
@@ -59,8 +58,7 @@ public:
   }
   */
 
-private:
-  using SenderMap = std::map<ConnectionID, std::shared_ptr<Sender>>;
+  using SenderMap = std::map<ConnectionID, std::unique_ptr<Sender>>;
   //using ReceiverMap = std::map<ConnectionID, std::shared_ptr<Receiver>>;
 
   SenderMap m_senders;
