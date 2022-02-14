@@ -11,6 +11,7 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <iostream>
 
 namespace dunedaq {
 namespace rubberdaq {
@@ -32,24 +33,18 @@ public:
 template<typename Datatype>
 class QueueSenderModel : public SenderConcept<Datatype> {
 public:
-  using SenderConcept<Datatype>::send;
-
   explicit QueueSenderModel(ConnectionID conn_id)
-    : SenderConcept<Datatype>()
-    , m_conn_id(conn_id)
+    : m_conn_id(conn_id)
   {
     std::cout << "QueueSenderModel created with DT! Addr: " << this << '\n';
     // get queue ref from queueregistry based on conn_id
   }
 
-  void send(Datatype& data) final {
+  void send(Datatype& data) override {
     std::cout << "Handle data: " << data << '\n';
     //if (m_queue->write(
   }
 
-  //std::unique_ptr<Queue> m_queue;
-
-private:
   ConnectionID m_conn_id;
 };
 
@@ -60,19 +55,18 @@ public:
   using SenderConcept<Datatype>::send;
 
   explicit NetworkSenderModel(ConnectionID conn_id)
-    : SenderConcept<Datatype>()
+    : SenderConcept<Datatype>(conn_id)
     , m_conn_id(conn_id)
   {
     std::cout << "NetworkSenderModel created with DT! Addr: " << this << '\n';
     // get network resources
   }
 
-  void send(Datatype& data) final {
+  void send(Datatype& data) override {
     std::cout << "Handle data: " << data << '\n';
     //if (m_queue->write(
   }
 
-private:
   ConnectionID m_conn_id;
 };
 

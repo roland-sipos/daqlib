@@ -19,25 +19,45 @@
 #include <string>
 #include <vector>
 
+#include <stdio.h>
+
 int
 main(int /*argc*/, char** /*argv[]*/)
 {
-
   dunedaq::rubberdaq::IOManager iom;
 
+  // Int sender
   dunedaq::rubberdaq::ConnectionID cid;
-  cid.m_service_type = "queue";
-  cid.m_service_name = "input1";
+  cid.m_service_type = "foo";
+  cid.m_service_name = "bar";
   cid.m_topic = "";
 
   int msg = 5;
-  iom.get_sender<int>(cid)->send(msg);
+  auto isender = iom.get_sender<int>(cid);
+  std::cout << "Type: " << typeid(isender).name() << '\n'; 
+  isender->send(msg);
+  isender->send(msg);
 
-  auto sender = iom.get_sender<std::string>(cid);
-  std::cout << "Type: " << typeid(sender).name() << '\n';
+  // String sender
+  dunedaq::rubberdaq::ConnectionID cid2;
+  cid2.m_service_type = "bar";
+  cid2.m_service_name = "foo";
+  cid2.m_topic = ""; 
 
+  auto ssender = iom.get_sender<std::string>(cid2);
+  std::cout << "Type: " << typeid(ssender).name() << '\n';
   std::string asd("asd");
-  sender->send(asd);
+  ssender->send(asd);
+
+  // String receiver
+  dunedaq::rubberdaq::ConnectionID cid3;
+  cid3.m_service_type = "asd";
+  cid3.m_service_name = "dsa";
+  cid3.m_topic = "";
+
+  auto receiver = iom.get_receiver<std::string>(cid3);
+  std::cout << "Type: " << typeid(receiver).name() << '\n';
+  std::string got = receiver->receive();
 
   // Exit
   TLOG() << "Exiting.";

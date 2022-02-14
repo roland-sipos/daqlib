@@ -6,6 +6,7 @@
 #define RUBBERDAQ_INCLUDE_CONNECTIONID_HPP_
 
 #include <string>
+#include <sstream>
 
 namespace dunedaq {
 namespace rubberdaq {
@@ -18,9 +19,11 @@ struct ConnectionID {
 
 inline
 bool operator< (const ConnectionID& l, const ConnectionID &r) {
-  return l.m_service_type < r.m_service_type &&
-         l.m_service_name < r.m_service_name &&
-         l.m_topic < r.m_topic;
+  std::ostringstream ossl;
+  std::ostringstream ossr;
+  ossl << l.m_service_type << l.m_service_type << l.m_topic;
+  ossr << r.m_service_type << r.m_service_type << r.m_topic;
+  return ossl.str() < ossr.str();
 }
 
 } // namespace rubberdaq
