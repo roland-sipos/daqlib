@@ -38,6 +38,9 @@ main(int /*argc*/, char** /*argv[]*/)
   isender->send(msg);
   isender->send(msg);
 
+  // One line send
+  iom.get_sender<int>(cid)->send(msg);
+
   // String sender
   dunedaq::rubberdaq::ConnectionID cid2;
   cid2.m_service_type = "bar";
