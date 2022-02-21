@@ -56,6 +56,18 @@ public:
     return dynamic_cast<ReceiverConcept<Datatype>*>(m_receivers[conn_id].get());
   }
 
+  template<typename Datatype>
+  void add_callback(ConnectionID conn_id, std::function<void(Datatype)> callback) {
+    auto receiver = dynamic_cast<ReceiverConcept<Datatype>*>(m_receivers[conn_id].get());
+    receiver->add_callback(callback);
+  }
+
+  template<typename Datatype>
+  void remove_callback(ConnectionID conn_id) {
+    auto receiver = dynamic_cast<ReceiverConcept<Datatype>*>(m_receivers[conn_id].get());
+    receiver->remove_callback();
+  }
+
   using SenderMap = std::map<ConnectionID, std::unique_ptr<Sender>>;
   using ReceiverMap = std::map<ConnectionID, std::unique_ptr<Receiver>>;
   SenderMap m_senders;
