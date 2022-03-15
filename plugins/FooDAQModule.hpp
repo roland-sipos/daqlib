@@ -7,7 +7,6 @@
 
 #include "appfwk/DAQModule.hpp"
 #include "appfwk/DAQSource.hpp"
-#include "appfwk/ThreadHelper.hpp"
 
 #include "Foo.hpp"
 
