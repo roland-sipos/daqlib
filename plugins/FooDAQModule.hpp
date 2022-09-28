@@ -6,7 +6,7 @@
 #define RUBBERDAQ_PLUGINS_FOODAQMODULE_HPP_
 
 #include "appfwk/DAQModule.hpp"
-#include "appfwk/DAQSource.hpp"
+//#include "appfwk/DAQSource.hpp"
 
 #include "Foo.hpp"
 

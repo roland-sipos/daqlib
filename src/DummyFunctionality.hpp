@@ -6,7 +6,7 @@
 #define RUBBERDAQ_SRC_DUMMYFUNCTIONALITY_HPP_
 
 // From appfwk
-#include "appfwk/DAQSource.hpp"
+//#include "appfwk/DAQSource.hpp"
 
 namespace dunedaq::rubberdaq {
 

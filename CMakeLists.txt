@@ -7,8 +7,23 @@ daq_setup_environment()
 
 find_package(appfwk REQUIRED)
 
+option(WITH_SNBT_EXAMPLES "Build SNB transfer examples" ON)
+
 ##############################################################################
-daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk)
+if(WITH_SNBT_EXAMPLES)
+  if(NOT DEFINED ENV{LIBTORRENT_LIB} OR NOT DEFINED ENV{LIBTORRENT_INC})
+    message(FATAL_ERROR "RUBBERDAQ CMake configuration ERROR! SNB transfer examples are requested but environment variables: LIBTORRENT_LIB and/or LIBTORRENT_INT are not set!")
+  endif()
+
+  set(LIBTORRENT_LIBRARIES
+    $ENV{LIBTORRENT_LIB}/libtorrent-rasterbar.so
+  )
+  daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk ${LIBTORRENT_LIBRARIES})
+  target_include_directories(rubberdaq PUBLIC $ENV{LIBTORRENT_INC})
+  daq_add_application(rubberdaq_test_snbt_tracker_app test_snbt_tracker_app.cxx TEST LINK_LIBRARIES rubberdaq)
+else()
+  daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk)
+endif()
 
 daq_add_plugin( FooDAQModule duneDAQModule LINK_LIBRARIES rubberdaq )
 
