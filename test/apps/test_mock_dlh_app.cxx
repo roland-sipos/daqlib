@@ -12,6 +12,7 @@
 #include "iomanager/IOManager.hpp"
 
 #include "readoutlibs/ReadoutTypes.hpp"
+#include "readoutlibs/DataMoveCallbackRegistry.hpp"
 #include "readoutlibs/models/IterableQueueModel.hpp"
 #include "readoutlibs/utils/RateLimiter.hpp"
 #include "readoutlibs/utils/ReusableThread.hpp"
@@ -40,6 +41,8 @@ namespace {
 
   template<typename T>
   std::map<int, std::unique_ptr<std::function<void(T&&)>>> CallbackMap = {};
+
+  //std::map<int, GenericCallback> GenericCallbackMap = {};
 
   int num_streams = 40;
   float prod_rate = 30.5;
@@ -76,6 +79,10 @@ main(int argc, char** argv)
     std::cout << "Test with consumer callback...\n";
   }
 
+  // Getting DataMoveCBRegistry
+  auto dmcbr = DataMoveCallbackRegistry::get();
+
+
   // If consumers, set up IOManager
   if (consumer_thread_mode) {
     setenv("DUNEDAQ_SESSION", "IOManager_t", 0);
@@ -99,7 +106,9 @@ main(int argc, char** argv)
     if (consumer_callback_mode) {
       dlh_map[i] = std::make_unique<MockDataLinkHandler<DUNEWIBEthTypeAdapter>>(i, true, marker, lb_numa_node, lb_capacity);
       // Register consume callback to a map with id i
+      //GenericCallbackMap[i] = dlh_map[i]->m_consume_payload;
       CallbackMap<DUNEWIBEthTypeAdapter>[i] = std::make_unique<std::function<void(DUNEWIBEthTypeAdapter&&)>>(dlh_map[i]->m_consume_payload);
+      dmcbr->register_callback<DUNEWIBEthTypeAdapter>(std::to_string(i), dlh_map[i]->m_consume_payload);
       std::cout << " Created CallbackMap's function pointer/address is: " << &CallbackMap<DUNEWIBEthTypeAdapter>[i] << '\n';
     } else if (consumer_thread_mode) {
       dlh_map[i] = std::make_unique<MockDataLinkHandler<DUNEWIBEthTypeAdapter>>(i, false, marker, lb_numa_node, lb_capacity);
@@ -108,8 +117,13 @@ main(int argc, char** argv)
       dlh_map[i]->set_receiver(queue_id);
       dlh_map[i]->start_consumer();
     }
-
   }
+
+  // DMCB TEST
+  std::string cbid("asd");
+  dmcbr->register_callback<DUNEWIBEthTypeAdapter>(cbid, dlh_map[0]->m_consume_payload);
+  auto& cb = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(cbid);
+  
 
   // RateLimiter
   std::cout << "Creating ratelimiter with " << prod_rate << "[kHz]...\n";
@@ -120,13 +134,15 @@ main(int argc, char** argv)
   for (unsigned i=0; i<num_streams; ++i) {
     if (consumer_callback_mode) { // go through Callbacks
       auto* cbref = CallbackMap<DUNEWIBEthTypeAdapter>[i].get();
+      auto& cb = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(std::to_string(i));
       producer_map[i] = std::thread([&, cbref]() {
         uint64_t tot_produced = 0;
         uint64_t ts = 0; // NOLINT(build/unsigned)
         while (marker.load()) {
           DUNEWIBEthTypeAdapter pl;
           pl.set_first_timestamp(ts);
-          (*cbref)(std::move(pl));
+          //(*cbref)(std::move(pl));
+          (*cb)(std::move(pl));
           ts += 32;
           ++tot_produced;
           rl.limit();
