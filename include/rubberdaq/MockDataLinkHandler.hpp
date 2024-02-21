@@ -44,6 +44,7 @@ public:
     if (callbacks) {
       m_consume_payload = [&, this](ROT&& payload) {
         m_latency_buffer.write(std::move(payload));
+        return true;
       };
       std::cout << "  -> Function pointer/address for consume callback is: " << &m_consume_payload << '\n';
     } else {

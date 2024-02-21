@@ -120,10 +120,11 @@ main(int argc, char** argv)
   }
 
   // DMCB TEST
-  std::string cbid("asd");
-  dmcbr->register_callback<DUNEWIBEthTypeAdapter>(cbid, dlh_map[0]->m_consume_payload);
-  auto& cb = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(cbid);
+  //std::string cbid("asd");
+  //dmcbr->register_callback<DUNEWIBEthTypeAdapter>(cbid, dlh_map[0]->m_consume_payload);
+  //auto& cb = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(cbid);
   
+  //std::function<void(DUNEWIBEthTypeAdapter&&)>* cbtest = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(cbid).get();
 
   // RateLimiter
   std::cout << "Creating ratelimiter with " << prod_rate << "[kHz]...\n";
@@ -134,15 +135,19 @@ main(int argc, char** argv)
   for (unsigned i=0; i<num_streams; ++i) {
     if (consumer_callback_mode) { // go through Callbacks
       auto* cbref = CallbackMap<DUNEWIBEthTypeAdapter>[i].get();
-      auto& cb = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(std::to_string(i));
-      producer_map[i] = std::thread([&, cbref]() {
+      auto cb = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(std::to_string(i));
+
+      //std::function<void(DUNEWIBEthTypeAdapter&&)>* cbtest = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(std::to_string(i)).get();
+      std::shared_ptr<std::function<void(DUNEWIBEthTypeAdapter&&)>> cbtestshared = dmcbr->get_callback<DUNEWIBEthTypeAdapter>(std::to_string(i));
+
+      producer_map[i] = std::thread([&, cbref, cbtestshared]() {
         uint64_t tot_produced = 0;
         uint64_t ts = 0; // NOLINT(build/unsigned)
         while (marker.load()) {
           DUNEWIBEthTypeAdapter pl;
           pl.set_first_timestamp(ts);
           //(*cbref)(std::move(pl));
-          (*cb)(std::move(pl));
+          (*cbtestshared)(std::move(pl));
           ts += 32;
           ++tot_produced;
           rl.limit();
