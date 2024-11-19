@@ -89,21 +89,15 @@ def main(args : argparse.Namespace):
     raidsyml_out = run_cmd(['ls', '-l', raid_dict[raid_syml]['symlink']])
     raid_dict[raid_syml]['device'] = '/dev/'+raidsyml_out[len(raidsyml_out)-1].replace('../', '')
 
-    mdadm_out = run_cmd(['mdadm', '--detail', raid_dict[raid_syml]['symlink']])
+    mdadm_out = run_cmd(['sudo', 'mdadm', '--detail', raid_dict[raid_syml]['symlink']])
     if mdadm_out:
       for mdadml in mdadm_out:
-        if (mdadml.find('Raid Devices') != -1):
-          raid_dict[raid_syml]['raid_devices'] = int(mdadml.split()[3])
-        if (mdadml.find('Total Devices') != -1):
-          raid_dict[raid_syml]['total_devices'] = int(mdadml.split()[3])
-        if (mdadml.find('wctive Devices') != -1):
-          raid_dict[raid_syml]['active_devices'] = int(mdadml.split()[3])
-        if (mdadml.find('Working Devices') != -1):
-          raid_dict[raid_syml]['working_devices'] = int(mdadml.split()[3])
-        if (mdadml.find('Failed Devices') != -1):
-          raid_dict[raid_syml]['failed_devices'] = int(mdadml.split()[3])
+        if "Devices" in mdadml:
+          words = mdadml.split()
+          dev = words[0].lower()
+          value = int(words[3])
+          raid_dict[raid_syml][f'{dev}_devices'] = value
       raid_devs = raid_dict[raid_syml]['raid_devices']
-      #for rid in range(raid_devs):
       devs_of_rid = mdadm_out[len(mdadm_out)-raid_devs:]
       raid_dict[raid_syml]['drives'] = []
       for dev in devs_of_rid:
@@ -135,7 +129,6 @@ def main(args : argparse.Namespace):
       dev_ids = dev_dict[cat].keys()
       print('Category', cat, ':', len(dev_ids))
       print('  -> lspci ids:', str(dev_ids))
-    print('\n')
 
   print('#### Hardware info...')
   lcpu_count = len(os.sched_getaffinity(0))
@@ -151,6 +144,8 @@ def main(args : argparse.Namespace):
     print('   * devs node', numa, json.dumps(numa_dict[numa]['devices'], indent=4))
 
   print('#### Memory status:\n', vmem)
+
+  print('#### RAID status:\n', raid_dict)
 
   if args.verbose:
     print('#### NVMe drives:')
