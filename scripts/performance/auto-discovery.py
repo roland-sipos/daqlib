@@ -63,46 +63,49 @@ def main(args : argparse.Namespace):
   ##### Check NVMe
   nvme_dict={}
   nvmesys_out = run_cmd(['nvme', 'list-subsys'])
-  clean_sys_out = [line for line in nvmesys_out if line.find('+-') != -1]
-  for nvmel in clean_sys_out:
-    nvmed = nvmel.split()
-    nvme_dict[nvmed[1]] = {}
-    nvme_dict[nvmed[1]]['pcie'] = nvmed[3][5:]
+  if nvmesys_out:
+    clean_sys_out = [line for line in nvmesys_out if line.find('+-') != -1]
+    for nvmel in clean_sys_out:
+      nvmed = nvmel.split()
+      nvme_dict[nvmed[1]] = {}
+      nvme_dict[nvmed[1]]['pcie'] = nvmed[3][5:]
 
   nvmelst_out = run_cmd(['nvme', 'list'])
-  nvmelst_out = nvmelst_out[2:] # remove headers
-  for nvmel in nvmelst_out:
-    nvmelsplt = nvmel.split()
-    nvmebrand = ' '.join(nvmelsplt[2:])
-    nvmenode = nvmelsplt[0]
-    nvmedev = nvmenode[5:len(nvmenode[0])-3]
-    nvme_dict[nvmedev]['dev'] = nvmenode
-    nvme_dict[nvmedev]['type'] = nvmebrand 
+  if nvmelst_out:
+    nvmelst_out = nvmelst_out[2:] # remove headers
+    for nvmel in nvmelst_out:
+      nvmelsplt = nvmel.split()
+      nvmebrand = ' '.join(nvmelsplt[2:])
+      nvmenode = nvmelsplt[0]
+      nvmedev = nvmenode[5:len(nvmenode[0])-3]
+      nvme_dict[nvmedev]['dev'] = nvmenode
+      nvme_dict[nvmedev]['type'] = nvmebrand 
 
   ##### Check RAIDs
   raid_dict={}
   lsraid_out = run_cmd(['ls','/dev/md/'])
-  for raid_syml in lsraid_out:
-    raid_dict[raid_syml] = {}
-    raid_dict[raid_syml]['symlink'] = '/dev/md/'+raid_syml
+  if lsraid_out:
+    for raid_syml in lsraid_out:
+      raid_dict[raid_syml] = {}
+      raid_dict[raid_syml]['symlink'] = '/dev/md/'+raid_syml
 
-    raidsyml_out = run_cmd(['ls', '-l', raid_dict[raid_syml]['symlink']])
-    raid_dict[raid_syml]['device'] = '/dev/'+raidsyml_out[len(raidsyml_out)-1].replace('../', '')
+      raidsyml_out = run_cmd(['ls', '-l', raid_dict[raid_syml]['symlink']])
+      raid_dict[raid_syml]['device'] = '/dev/'+raidsyml_out[len(raidsyml_out)-1].replace('../', '')
 
-    mdadm_out = run_cmd(['sudo', 'mdadm', '--detail', raid_dict[raid_syml]['symlink']])
-    if mdadm_out:
-      for mdadml in mdadm_out:
-        if "Devices" in mdadml:
-          words = mdadml.split()
-          dev = words[0].lower()
-          value = int(words[3])
-          raid_dict[raid_syml][f'{dev}_devices'] = value
-      raid_devs = raid_dict[raid_syml]['raid_devices']
-      devs_of_rid = mdadm_out[len(mdadm_out)-raid_devs:]
-      raid_dict[raid_syml]['drives'] = []
-      for dev in devs_of_rid:
-        dev_items = dev.split()
-        raid_dict[raid_syml]['drives'].append(dev_items[len(dev_items)-1]) 
+      mdadm_out = run_cmd(['sudo', 'mdadm', '--detail', raid_dict[raid_syml]['symlink']])
+      if mdadm_out:
+        for mdadml in mdadm_out:
+          if "Devices" in mdadml:
+            words = mdadml.split()
+            dev = words[0].lower()
+            value = int(words[3])
+            raid_dict[raid_syml][f'{dev}_devices'] = value
+        raid_devs = raid_dict[raid_syml]['raid_devices']
+        devs_of_rid = mdadm_out[len(mdadm_out)-raid_devs:]
+        raid_dict[raid_syml]['drives'] = []
+        for dev in devs_of_rid:
+          dev_items = dev.split()
+          raid_dict[raid_syml]['drives'].append(dev_items[len(dev_items)-1]) 
 
   partitions = psutil.disk_partitions()
   for raid in raid_dict:
