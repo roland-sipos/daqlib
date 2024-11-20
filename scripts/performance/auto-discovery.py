@@ -17,48 +17,54 @@ def run_cmd(cmd : list[str]):
 
 
 def main(args : argparse.Namespace):
-  dev_dict={}
+  dev_dict = {}
   for dev in args.device:
     dev_dict[dev] = {}
 
   ##### Check NUMA
-  numa_dict={}
+  numa_dict = {}
+  numa_nodes = None
   numactl_out = run_cmd(['numactl', '-H'])
-  for numal in numactl_out:
-    if numal.find('cpus') != -1:
-      cpu_line = numal.split()
-      if cpu_line[1] not in numa_dict:
-        numa_dict[cpu_line[1]] = {}
-      numa_dict[cpu_line[1]]['cpus'] = [int(cpu) for cpu in cpu_line[3:]]
+  if numactl_out:
+    for numal in numactl_out:
+      if numal.find('cpus') != -1:
+        cpu_line = numal.split()
+        if cpu_line[1] not in numa_dict:
+          numa_dict[cpu_line[1]] = {}
+        numa_dict[cpu_line[1]]['cpus'] = [int(cpu) for cpu in cpu_line[3:]]
 
-    for mem in ["size", "free"]:
-      if numal.find(mem) != -1:
-        value = numal.split()
-        numa_dict[value[1]][mem] = int(value[3])*1024 # convert to KB
+      for mem in ["size", "free"]:
+        if numal.find(mem) != -1:
+          value = numal.split()
+          numa_dict[value[1]][mem] = int(value[3])*1024 # convert to KB
 
-  numa_nodes = int(numactl_out[0].split()[1])
+    numa_nodes = int(numactl_out[0].split()[1])
+
+    for nodeid in range(numa_nodes):
+      numa_dict[str(nodeid)]['devices'] = []
 
   ##### Check LSPCI
   lspci_out = run_cmd(["lspci"])
-  for item in lspci_out:
-    devl = item.split(' ')
-    devl[1:len(devl)] = [' '.join(devl[1:len(devl)])]
-    for dev in args.device:
-      if (devl[1].find(dev) != -1):
-        dev_dict[dev][devl[0]] = devl
-        verbose_info = run_cmd(["lspci", "-s", devl[0], "-vvvvv"])
-        for vline in verbose_info:
-          if (vline.find('NUMA') != -1):
-            zone = vline.split()[2]
-            dev_dict[dev][devl[0]].append(int(zone))
+  if lspci_out:
+    for item in lspci_out:
+      devl = item.split(' ')
+      devl[1:len(devl)] = [' '.join(devl[1:len(devl)])]
+      for dev in args.device:
+        if devl[1].find(dev) != -1:
+          dev_dict[dev][devl[0]] = devl
+          verbose_info = run_cmd(["lspci", "-s", devl[0], "-vvvvv"])
+          for vline in verbose_info:
+            if vline.find('NUMA') != -1:
+              zone = vline.split()[2]
+              dev_dict[dev][devl[0]].append(int(zone))
 
-  for nodeid in range(numa_nodes):
-    numa_dict[str(nodeid)]['devices'] = []
-
-  for cat in dev_dict:
-    for dev in dev_dict[cat]:
-      zone = dev_dict[cat][dev][2]
-      numa_dict[str(zone)]['devices'].append((dev, dev_dict[cat][dev][1]))
+    for cat in dev_dict:
+      for dev in dev_dict[cat]:
+        zone = dev_dict[cat][dev][2]
+        if str(zone) not in numa_dict:
+          numa_dict[str(zone)] = {'devices' : []}
+        else:
+          numa_dict[str(zone)]['devices'].append((dev, dev_dict[cat][dev][1]))
 
   ##### Check NVMe
   nvme_dict={}
@@ -110,7 +116,7 @@ def main(args : argparse.Namespace):
   partitions = psutil.disk_partitions()
   for raid in raid_dict:
     for part in partitions:
-      if (part.device == raid_dict[raid]['device']):
+      if part.device == raid_dict[raid]['device']:
         raid_dict[raid]['mount'] = part.mountpoint
         raid_dict[raid]['usage'] = psutil.disk_usage(part.mountpoint)
     
@@ -119,8 +125,6 @@ def main(args : argparse.Namespace):
   # Check for numad stopped
   # Check for fstrim stopped systemctl status fstrim.timer
   #fstrim_out_raw = check_output()
-
-  #exit(0)
 
   ##### Print info
   dev_cat = dev_dict.keys()
@@ -139,8 +143,16 @@ def main(args : argparse.Namespace):
   vmem = psutil.virtual_memory()
   print('  -> Logical CPU count:', lcpu_count)
   print('  -> Physical CPU count:', pcpu_count)
-  print('  -> NUMA nodes:', numa_nodes)
+
+  if numa_nodes:
+    print('  -> NUMA nodes:', numa_nodes)
+  else:
+    print("NUMA nodes was not found")
+
   for numa in numa_dict:
+    if ("cpus" not in numa_dict[numa]):
+      print("cpus for each NUMA node could not be found")
+      continue
     print('   * CPUs node', numa, *numa_dict[numa]['cpus'])
     print('   * size node', numa, numa_dict[numa]['size'])
     print('   * free node', numa, numa_dict[numa]['free'])
@@ -148,7 +160,10 @@ def main(args : argparse.Namespace):
 
   print('#### Memory status:\n', vmem)
 
-  print('#### RAID status:\n', raid_dict)
+  if len(raid_dict) == 0:
+    print("no RAID devices were found.")
+  else:
+    print('#### RAID status:\n', raid_dict)
 
   if args.verbose:
     print('#### NVMe drives:')
