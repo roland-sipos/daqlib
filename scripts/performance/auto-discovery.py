@@ -9,19 +9,8 @@ from subprocess import check_output
 
 from rich import print
 
-def run_cmd(cmd : list[str]):
-  try:
-    return check_output(cmd, stderr = subprocess.STDOUT).decode("utf-8").splitlines()
-  except subprocess.CalledProcessError as err:
-    print(f"{cmd} ran with error: {err.output.decode('utf-8')}")
 
-
-def main(args : argparse.Namespace):
-  dev_dict = {}
-  for dev in args.device:
-    dev_dict[dev] = {}
-
-  ##### Check NUMA
+def get_numa_info() -> tuple[dict, int]:
   numa_dict = {}
   numa_nodes = None
   numactl_out = run_cmd(['numactl', '-H'])
@@ -42,6 +31,23 @@ def main(args : argparse.Namespace):
 
     for nodeid in range(numa_nodes):
       numa_dict[str(nodeid)]['devices'] = []
+
+  return numa_dict, numa_nodes
+
+def run_cmd(cmd : list[str]):
+  try:
+    return check_output(cmd, stderr = subprocess.STDOUT).decode("utf-8").splitlines()
+  except subprocess.CalledProcessError as err:
+    print(f"{cmd} ran with error: {err.output.decode('utf-8')}")
+
+
+def main(args : argparse.Namespace):
+  dev_dict = {}
+  for dev in args.device:
+    dev_dict[dev] = {}
+
+  ##### Check NUMA
+  numa_dict, numa_nodes = get_numa_info()
 
   ##### Check LSPCI
   lspci_out = run_cmd(["lspci"])
