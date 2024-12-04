@@ -57,8 +57,8 @@ def cpu_list_to_str(cpus : list[int]) -> list[str]:
     return ",".join(str(c) for c in cpus)
 
 
-def make_threads(pinning : dict, numa : int, name : int, func : callable, kwargs : dict = None):
-    counter = 0
+def make_threads(pinning : dict, numa : int, name : int, func : callable, kwargs : dict = None, counter_offset : int = 0):
+    counter = 0 + counter_offset
     for n in pinning["daq_application"]:
         if numa == int(n.split(name)[-1][0]):
             counter += 1
@@ -133,7 +133,7 @@ def make_recording(pinning : dict, name : str, counter : int, nums : list[int]):
     return
 
 
-def create_threads_numa(pinning : dict, cpus : cpu_checker, numa : int, name : str, thread_nums : dict[int], n_regions : int):
+def create_threads_numa(pinning : dict, cpus : cpu_checker, numa : int, name : str, thread_nums : dict[int], n_regions : int, numa_apps : list[int]):
     """
     RULES:
     
@@ -182,17 +182,17 @@ def create_threads_numa(pinning : dict, cpus : cpu_checker, numa : int, name : s
     make_threads(pinning, numa, name, make_parent, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions})
 
     # rawprocs
-    make_threads(pinning, numa, name, make_rawprocs, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions})
+    make_threads(pinning, numa, name, make_rawprocs, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions}, numa_apps[numa - 1] if numa > 0 else 0)
 
     # cleanup, consumer, periodic
-    make_threads(pinning, numa, name, make_ccp, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions})
+    make_threads(pinning, numa, name, make_ccp, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions}, numa_apps[numa - 1] if numa > 0 else 0)
 
     # recording #! this appears to have higher priority than ccp threads
     if n_regions == 1:
         recording_numa = cpus.range(cpus.cpu_list_regions[numa][-1] - 5, cpus.cpu_list_regions[numa][-1] + 1, numa)
     else:
         recording_numa = cpus.range(cpus.cpu_list_regions[numa][0][-1] - 2, cpus.cpu_list_regions[numa][0][-1] + 1, numa, 0) + cpus.range(cpus.cpu_list_regions[numa][1][-1] - 2, cpus.cpu_list_regions[numa][1][-1] + 1, numa, 1)
-    make_threads(pinning, numa, name, make_recording, {"nums" : recording_numa})
+    make_threads(pinning, numa, name, make_recording, {"nums" : recording_numa}, numa_apps[numa - 1] if numa > 0 else 0)
     return
 
 
@@ -230,18 +230,22 @@ def main(args = argparse.Namespace):
     #! this should be read from the oks config
     split = args.num_apps // n_numa
     app_names = []
+    numa_apps = []
     for i in range(n_numa):
+        numa_apps.append(0)
         for j in range(split):
             if (args.num_apps == n_numa):
                 app_name = f"{daq_app_names}{i}"
             else:
                 app_name = f"{daq_app_names}{i}{j}"
             app_names.append(app_name)
+            numa_apps[i] += 1
 
     if (args.num_apps % n_numa) > 0:
         for i in range(n_numa):
             if len(app_names) < args.num_apps:
                 app_names.append(f"{daq_app_names}{i}{split + i}")
+                numa_apps[i] += 1
             else:
                 break
 
@@ -339,7 +343,7 @@ def main(args = argparse.Namespace):
 
     cpus = cpu_checker(cpus_remaining, remaining_regions)
     for i in range(2):
-        create_threads_numa(pinning, cpus, i, daq_app_names, thread_nums, n_regions)
+        create_threads_numa(pinning, cpus, i, daq_app_names, thread_nums, n_regions, numa_apps)
 
     print(pinning)
     print(cpus.cpu_list_regions)
