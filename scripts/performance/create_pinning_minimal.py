@@ -71,7 +71,7 @@ def make_tpproc(pinning : dict, name : str, counter : int, nums : list[int]):
     return
 
 
-def make_rte(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_threads : int, n_regions : int):
+def make_rte(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_threads : int, n_regions : int, n_cpus : int):
     for i in range(n_threads):
         if n_regions == 1:
             c = cpus.first_available(numa)
@@ -86,41 +86,38 @@ def make_rte(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa
     return
 
 
-def make_parent(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int):
+def make_parent(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int, n_cpus : int):
     if n_regions == 1:
-        parents = [i for i in cpus.cpu_list_regions[numa] if (i >= cpus.first_available(numa)) and (i < (cpus.first_available(numa) + 41))]
-
+        parents = [i for i in cpus.cpu_list_regions[numa] if (i >= cpus.first_available(numa)) and (i < (cpus.first_available(numa) + (2 * n_cpus) + 1))]
     else:
         # parents = ""
         # for t, v in pinning["daq_application"][name]["threads"].items():
         #     if ("tpproc" in t) or ("rte" in t) or ("record" in t): continue
         #     parents = ",".join([parents, v])
-        parents = [i for i in cpus.cpu_list_regions[numa][0] if (i >= cpus.first_available(numa, 0)) and (i < (cpus.first_available(numa, 0) + 21))] + [i for i in cpus.cpu_list_regions[numa][1] if (i >= cpus.first_available(numa, 1)) and (i < (cpus.first_available(numa, 1) + 21))]
+        parents = [i for i in cpus.cpu_list_regions[numa][0] if (i >= cpus.first_available(numa, 0)) and (i < (cpus.first_available(numa, 0) + n_cpus + 1))] + [i for i in cpus.cpu_list_regions[numa][1] if (i >= cpus.first_available(numa, 1)) and (i < (cpus.first_available(numa, 1) + n_cpus + 1))]
     pinning["daq_application"][name]["parent"] = cpu_list_to_str(parents)
 
     # pinning["daq_application"][name]["parent"] = parents[1:]
     return
 
 
-def make_rawprocs(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int):
-    n_cpu = 16
+def make_rawprocs(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int, n_cpus : int):
     if n_regions == 1:
-        raw_proc = cpus.alt_range(n_cpu, numa)
+        raw_proc = cpus.alt_range(n_cpus, numa)
         # raw_proc = cpus.range(cpus.first_available(numa), cpus.first_available(numa) + 17, numa)
     else:
-        raw_proc = cpus.alt_range(n_cpu//2, numa, 0) + cpus.alt_range(n_cpu//2, numa, 1)
+        raw_proc = cpus.alt_range(n_cpus//2, numa, 0) + cpus.alt_range(n_cpus//2, numa, 1)
         # raw_proc = cpus.range(cpus.first_available(numa, 0), cpus.first_available(numa, 0) + 8, numa, 0) + cpus.range(cpus.first_available(numa, 1), cpus.first_available(numa, 1) + 8, numa, 1)
     pinning["daq_application"][name]["threads"][f"rawproc-0-{counter}.."] = cpu_list_to_str(raw_proc)
     return
 
 
-def make_ccp(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int):
-    n_cpu = 6
+def make_ccp(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int, n_cpus : int):
     if n_regions == 1:
-        ccp_threads = cpus.alt_range(n_cpu, numa)
+        ccp_threads = cpus.alt_range(n_cpus, numa)
         # ccp_threads = cpus.range(cpus.first_available(numa), cpus.first_available(numa) + 7, numa)
     else:
-        ccp_threads = cpus.alt_range(n_cpu//2, numa, 0) + cpus.alt_range(n_cpu//2, numa, 1)
+        ccp_threads = cpus.alt_range(n_cpus//2, numa, 0) + cpus.alt_range(n_cpus//2, numa, 1)
         # ccp_threads = cpus.range(cpus.first_available(numa, 0), cpus.first_available(numa, 0) + 3, numa, 0) + cpus.range(cpus.first_available(numa, 1), cpus.first_available(numa, 1) + 3, numa, 1)
     pinning["daq_application"][name]["threads"][f"cleanup-{counter}."] =  cpu_list_to_str(ccp_threads)
     pinning["daq_application"][name]["threads"][f"consumer-{counter}."] = cpu_list_to_str(ccp_threads)
@@ -133,7 +130,7 @@ def make_recording(pinning : dict, name : str, counter : int, nums : list[int]):
     return
 
 
-def create_threads_numa(pinning : dict, cpus : cpu_checker, numa : int, name : str, thread_nums : dict[int], n_regions : int, numa_apps : list[int]):
+def create_threads_numa(pinning : dict, cpus : cpu_checker, numa : int, name : str, thread_nums : dict[int], n_regions : int, numa_apps : list[int], max_cpus : dict[int]):
     """
     RULES:
     
@@ -170,28 +167,43 @@ def create_threads_numa(pinning : dict, cpus : cpu_checker, numa : int, name : s
     """
     # tp procs
     if n_regions == 1:
-        tp_procs_numa = [cpus[cpus.first_available(numa)], cpus[cpus.first_available(numa)]]
+        tp_procs_numa = [cpus[cpus.first_available(numa)] for i in range(max_cpus["tpproc"])]
     else:
-        tp_procs_numa = [cpus[cpus.first_available(numa, 0)], cpus[cpus.first_available(numa, 1)]]
+        remaining = max_cpus["tpproc"]
+        tp_procs_numa = []
+        while remaining > 0:
+            for i in range(n_regions):
+                if remaining == 0: break
+                tp_procs_numa.append(cpus[cpus.first_available(numa, i)])
+                remaining -= 1
+
     make_threads(pinning, numa, name, make_tpproc, {"nums" : tp_procs_numa})
 
     # rtes
-    make_threads(pinning, numa, name, make_rte, {"numa" : numa, "cpus" : cpus, "n_threads" : thread_nums["rte"], "n_regions" : n_regions})
+    make_threads(pinning, numa, name, make_rte, {"numa" : numa, "cpus" : cpus, "n_threads" : thread_nums["rte"], "n_regions" : n_regions, "n_cpus" : max_cpus["rte"]})
 
     # parent threads
-    make_threads(pinning, numa, name, make_parent, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions})
+    make_threads(pinning, numa, name, make_parent, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions, "n_cpus" : max_cpus["rawproc"] + max_cpus["ccp"]})
 
     # rawprocs
-    make_threads(pinning, numa, name, make_rawprocs, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions}, numa_apps[numa - 1] if numa > 0 else 0)
+    make_threads(pinning, numa, name, make_rawprocs, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions, "n_cpus" : max_cpus["rawproc"]}, numa_apps[numa - 1] if numa > 0 else 0)
 
     # cleanup, consumer, periodic
-    make_threads(pinning, numa, name, make_ccp, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions}, numa_apps[numa - 1] if numa > 0 else 0)
+    make_threads(pinning, numa, name, make_ccp, {"numa" : numa, "cpus" : cpus, "n_regions" : n_regions, "n_cpus" : max_cpus["ccp"]}, numa_apps[numa - 1] if numa > 0 else 0)
 
     # recording #! this appears to have higher priority than ccp threads
     if n_regions == 1:
-        recording_numa = cpus.range(cpus.cpu_list_regions[numa][-1] - 5, cpus.cpu_list_regions[numa][-1] + 1, numa)
+        recording_numa = cpus.range(cpus.cpu_list_regions[numa][-1] - (max_cpus["recording"] - 1), cpus.cpu_list_regions[numa][-1] + 1, numa)
     else:
-        recording_numa = cpus.range(cpus.cpu_list_regions[numa][0][-1] - 2, cpus.cpu_list_regions[numa][0][-1] + 1, numa, 0) + cpus.range(cpus.cpu_list_regions[numa][1][-1] - 2, cpus.cpu_list_regions[numa][1][-1] + 1, numa, 1)
+        n_cpus = max_cpus["recording"] // n_regions
+        remainder = max_cpus["recording"] % n_regions
+        recording_numa = []
+        for i in range(n_regions):
+            if i == (n_regions - 1):
+                n = n_cpus + remainder
+            else:
+                n = n_cpus
+            recording_numa.extend(cpus.range(cpus.cpu_list_regions[numa][i][-1] - (n - 1), cpus.cpu_list_regions[numa][i][-1] + 1, numa, i))
     make_threads(pinning, numa, name, make_recording, {"nums" : recording_numa}, numa_apps[numa - 1] if numa > 0 else 0)
     return
 
@@ -261,13 +273,7 @@ def main(args = argparse.Namespace):
     cores_per_app = n_cpus_total // len(app_names)
 
     # how many cores should be assigned to a single thread (sharing rules are omitted here). Taken from np04-srv-031 pinning
-    max_cores = {
-        "rte" : 1,
-        "tpproc" : 2,
-        "rawproc" : 16,
-        "ccp" : 6,
-        "recording" : 6
-    }
+    max_cpus = {k : getattr(args, k) for k in max_cpus_default}
 
     # as done for np04-srv-031
     n_threads_APA = {
@@ -291,7 +297,7 @@ def main(args = argparse.Namespace):
         "recording" : 1,
     }
 
-    max_cpu_APA = sum(v for v in max_cores.values())
+    total_cpus_used = sum(v for v in max_cpus.values())
 
     for numa in numa_dict:
         cpus = numa_dict[numa]["cpus"]
@@ -310,7 +316,7 @@ def main(args = argparse.Namespace):
             n_regions = 2
             numa_dict[numa]["regions"] = [cpus[:region_boundaries[0]], cpus[region_boundaries[0]:]]
 
-    print(f"headroom : {cores_per_app - max_cpu_APA}")
+    print(f"headroom : {cores_per_app - total_cpus_used}")
 
     cpus_remaining = list(cpus_all)
     remaining_regions = [v["regions"] for v in numa_dict.values()]
@@ -343,9 +349,10 @@ def main(args = argparse.Namespace):
 
     cpus = cpu_checker(cpus_remaining, remaining_regions)
     for i in range(2):
-        create_threads_numa(pinning, cpus, i, daq_app_names, thread_nums, n_regions, numa_apps)
+        create_threads_numa(pinning, cpus, i, daq_app_names, thread_nums, n_regions, numa_apps, max_cpus)
 
     print(pinning)
+    print("remaining cpus:")
     print(cpus.cpu_list_regions)
 
     with open("cpupin-all-running.json", "w") as f:
@@ -356,10 +363,26 @@ def main(args = argparse.Namespace):
     return
 
 if __name__ == "__main__":
+    max_cpus_default = {
+        "rte" : 1,
+        "tpproc" : 2,
+        "rawproc" : 16,
+        "ccp" : 6,
+        "recording" : 6
+    }
+
     parser = argparse.ArgumentParser("generate a pinning file for a readout machine")
     parser.add_argument("-r", "--readout_server", type = str, default = gethostname(), help = "hostname for the machine, if not provided the current machine hostname is used")
     parser.add_argument("-f", "--fake", action="store_true", help = "fake the numactl output for the specified readout machine")
     parser.add_argument("-n", "--num_apps", type = int, default = 1, help = "number of daq_applications to make.")
+
+    for k, v in max_cpus_default.items():
+        if k == "ccp":
+            name = "consumer, cleanup or periodic"
+        else:
+            name = k
+        parser.add_argument(f"--{k}", dest = k, type = int, default = v, help = f"number of cpus to assign to a {name} thread")
+
     args = parser.parse_args()
 
     print(args)
