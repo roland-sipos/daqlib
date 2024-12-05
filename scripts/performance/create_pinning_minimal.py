@@ -1,4 +1,11 @@
 #!/usr/bin/env python
+"""
+Created on: 05/12/2024 12:17
+
+Author: Shyam Bhuller
+
+Description: Create a cpu pinning file for a readout server.
+"""
 import argparse
 import importlib
 import json
@@ -8,21 +15,56 @@ get_numa_info = getattr(importlib.import_module("auto-discovery"), "get_numa_inf
 
 from rich import print
 
-class cpu_checker:
+class CPUList:
+    """
+    A class to represent a CPU list. CPUs can be retireved from the list,
+    and if so, that CPU number is removed from the list. Used to keep track
+    of CPUs when assigning them to threads.
+
+    Attributes
+    ----------
+    cpu_list : list[int]
+        Flat list of available CPUs.
+    cpu_list_regions : list[list[list[int]]]
+        List of available CPUs split into numa and if applicable, regions.
+
+    Methods
+    -------
+    __getitem__:
+        Return the desired CPU number and remove this from the availble CPUs lists.
+    range:
+        Loop over the CPU list and return a list of CPUs, and remove them from the available CPUs lists.
+    alt_range:
+        Loop over the CPU list and return a list of CPUs using "for each", and remove them from the available CPUs lists.
+    first_available:
+        Return the first CPU (number at index 0) and remove this from the available CPUs lists.
+    """
     def __init__(self, cpu_list : list[int], cpu_list_regions : list[list[list[int]]]) -> None:
         self.cpu_list = cpu_list
         self.cpu_list_regions = cpu_list_regions
         pass
 
 
-    def __getitem__(self, c : int):
+    def __getitem__(self, c : int) -> int:
+        """ Return the desired CPU number and remove this from the availble cpus lists.
+
+        Args:
+            c (int): CPU number.
+
+        Raises:
+            Exception: Available CPU list is empty.
+            Exception: CPU number was not found.
+
+        Returns:
+            int: CPU number.
+        """
         if c in self.cpu_list:
             self.cpu_list.remove(c)
-            for n in self.cpu_list_regions:
+            for n in self.cpu_list_regions: # loop over numa
                 if len(n) == 0:
                     raise Exception("no more free cpus available!")
                 if type(n[0]) is list: # there should never be a mix of ints and lists in the cpu list, so this is fine.
-                    for h in n:
+                    for h in n: # loop over region
                         if c in h: h.remove(c)
                 else:
                     if c in n: n.remove(c)
@@ -31,34 +73,82 @@ class cpu_checker:
             raise Exception(f"cpu {c} not found (has it already been allocated?)")
 
 
-    def range(self, _min : int, _max : int, numa : int, region : int = None):
+    def range(self, _min : int, _max : int, numa : int, region : int = None) -> list[int]:
+        """ Loop over the CPU list and return a list of CPUs, and remove them from the available CPUs lists.
+
+        Args:
+            _min (int): Min index
+            _max (int): Max index
+            numa (int): Numa to loop over
+            region (int, optional): Region to loop over. Defaults to None.
+
+        Returns:
+            list[int]: List of selected CPUs.
+        """
         if region is None:
             return [self[i] for i in list(self.cpu_list_regions[numa]) if (i >= _min) and (i < _max)]
         else:
             return [self[i] for i in list(self.cpu_list_regions[numa][region]) if (i >= _min) and (i < _max)]
 
 
-    def alt_range(self, num : int, numa : int, region : int = None):
+    def alt_range(self, num : int, numa : int, region : int = None) -> list[int]:
+        """ Loop over the CPU list and return a list of CPUs using "for each", and remove them from the available CPUs lists.
+
+        Args:
+            num (int): Number of CPUs to return
+            numa (int): Numa to loop over
+            region (int, optional): Region to loop over. Defaults to None.
+
+        Returns:
+            list[int]: List of selected CPUs.
+        """
         if region is None:
             return [self[i] for i in list(self.cpu_list_regions[numa][:num])]
         else:
             return [self[i] for i in list(self.cpu_list_regions[numa][region][:num])]
 
 
-    def first_available(self, numa : int, region : int = None):
+    def first_available(self, numa : int, region : int = None) -> int:
+        """ Return the first CPU (number at index 0) and remove this from the available CPUs lists.
+
+        Args:
+            numa (int): Numa to select from
+            region (int, optional): Region to select from. Defaults to None.
+
+        Returns:
+            int: first available CPU
+        """
         if region is not None:
             return self.cpu_list_regions[numa][region][0]
         else:
             return self.cpu_list_regions[numa][0]
 
 
-def cpu_list_to_str(cpus : list[int]) -> list[str]:
+def cpu_list_to_str(cpus : list[int]) -> str:
+    """ Convert a list of CPUs to a string format for the json file.
+
+    Args:
+        cpus (list[int]): List of CPUs
+
+    Returns:
+        str: CPU list string
+    """
     #! for now, just use join, but can try to condense it later on.
     return ",".join(str(c) for c in cpus)
 
 
 def make_threads(pinning : dict, numa : int, name : int, func : callable, kwargs : dict = None, counter_offset : int = 0):
-    counter = 0 + counter_offset
+    """ make entries for a specified thread type into the pinning configuration.
+
+    Args:
+        pinning (dict): pinning configuration.
+        numa (int): Numa to make entry for.
+        name (int): Name of the daq application.
+        func (callable): Function to call that makes and adds the cpu list to the configuration.
+        kwargs (dict, optional): Arguments to pass to func. Defaults to None.
+        counter_offset (int, optional): Offset to the application counter. Defaults to 0.
+    """
+    counter = 0 + counter_offset # application counter, useful when assigning names to certain threads
     for n in pinning["daq_application"]:
         if numa == int(n.split(name)[-1][0]):
             counter += 1
@@ -67,11 +157,31 @@ def make_threads(pinning : dict, numa : int, name : int, func : callable, kwargs
 
 
 def make_tpproc(pinning : dict, name : str, counter : int, nums : list[int]):
+    """ Assign the tpproc threads in the pinning configuration.
+
+    Args:
+        pinning (dict): Pinning configuration.
+        name (str): Name of the daq application.
+        counter (int): Current application number.
+        nums (list[int]): List of cpus to assign.
+    """
     pinning["daq_application"][name]["threads"] = {f"tpproc-{counter}." : cpu_list_to_str(nums)}
     return
 
 
-def make_rte(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_threads : int, n_regions : int, n_cpus : int):
+def make_rte(pinning : dict, name : str, counter : int, cpus : CPUList, numa : int, n_threads : int, n_regions : int, n_cpus : int):
+    """ Assign the rte threads in the pinning configuration.
+
+    Args:
+        pinning (dict): Pinning configuration.
+        name (str): Name of the daq application.
+        counter (int): Current application number.
+        cpus (CPUList): CPU list to make assignments from.
+        numa (int): Numa to make entry for.
+        n_threads (int): Number of threads to make.
+        n_regions (int): Number of cpu regions in a numa.
+        n_cpus (int): number of cpus to assign to a single thread.
+    """
     for i in range(n_threads):
         if n_regions == 1:
             c = cpus.first_available(numa)
@@ -86,7 +196,18 @@ def make_rte(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa
     return
 
 
-def make_parent(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int, n_cpus : int):
+def make_parent(pinning : dict, name : str, counter : int, cpus : CPUList, numa : int, n_regions : int, n_cpus : int):
+    """ Assign the parent thread in the pinning configuration.
+
+    Args:
+        pinning (dict): Pinning configuration.
+        name (str): Name of the daq application.
+        counter (int): Current application number.
+        cpus (CPUList): CPU list to make assignments from.
+        numa (int): Numa to make entry for.
+        n_regions (int): Number of cpu regions in a numa.
+        n_cpus (int): number of cpus to assign to a single thread.
+    """
     if n_regions == 1:
         parents = [i for i in cpus.cpu_list_regions[numa] if (i >= cpus.first_available(numa)) and (i < (cpus.first_available(numa) + (2 * n_cpus) + 1))]
     else:
@@ -101,24 +222,42 @@ def make_parent(pinning : dict, name : str, counter : int, cpus : cpu_checker, n
     return
 
 
-def make_rawprocs(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int, n_cpus : int):
+def make_rawprocs(pinning : dict, name : str, counter : int, cpus : CPUList, numa : int, n_regions : int, n_cpus : int):
+    """ Assign the raw processor threads in the pinning configuration.
+
+    Args:
+        pinning (dict): Pinning configuration.
+        name (str): Name of the daq application.
+        counter (int): Current application number.
+        cpus (CPUList): CPU list to make assignments from.
+        numa (int): Numa to make entry for.
+        n_regions (int): Number of cpu regions in a numa.
+        n_cpus (int): number of cpus to assign to a single thread.
+    """
     if n_regions == 1:
         raw_proc = cpus.alt_range(n_cpus, numa)
-        # raw_proc = cpus.range(cpus.first_available(numa), cpus.first_available(numa) + 17, numa)
     else:
         raw_proc = cpus.alt_range(n_cpus//2, numa, 0) + cpus.alt_range(n_cpus//2, numa, 1)
-        # raw_proc = cpus.range(cpus.first_available(numa, 0), cpus.first_available(numa, 0) + 8, numa, 0) + cpus.range(cpus.first_available(numa, 1), cpus.first_available(numa, 1) + 8, numa, 1)
     pinning["daq_application"][name]["threads"][f"rawproc-0-{counter}.."] = cpu_list_to_str(raw_proc)
     return
 
 
-def make_ccp(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa : int, n_regions : int, n_cpus : int):
+def make_ccp(pinning : dict, name : str, counter : int, cpus : CPUList, numa : int, n_regions : int, n_cpus : int):
+    """ Assign the consmer, cleanup and periodic threads in the pinning configuration.
+
+    Args:
+        pinning (dict): Pinning configuration.
+        name (str): Name of the daq application.
+        counter (int): Current application number.
+        cpus (CPUList): CPU list to make assignments from.
+        numa (int): Numa to make entry for.
+        n_regions (int): Number of cpu regions in a numa.
+        n_cpus (int): number of cpus to assign to a single thread.
+    """
     if n_regions == 1:
         ccp_threads = cpus.alt_range(n_cpus, numa)
-        # ccp_threads = cpus.range(cpus.first_available(numa), cpus.first_available(numa) + 7, numa)
     else:
         ccp_threads = cpus.alt_range(n_cpus//2, numa, 0) + cpus.alt_range(n_cpus//2, numa, 1)
-        # ccp_threads = cpus.range(cpus.first_available(numa, 0), cpus.first_available(numa, 0) + 3, numa, 0) + cpus.range(cpus.first_available(numa, 1), cpus.first_available(numa, 1) + 3, numa, 1)
     pinning["daq_application"][name]["threads"][f"cleanup-{counter}."] =  cpu_list_to_str(ccp_threads)
     pinning["daq_application"][name]["threads"][f"consumer-{counter}."] = cpu_list_to_str(ccp_threads)
     pinning["daq_application"][name]["threads"][f"periodic-{counter}."] = cpu_list_to_str(ccp_threads)
@@ -126,12 +265,31 @@ def make_ccp(pinning : dict, name : str, counter : int, cpus : cpu_checker, numa
 
 
 def make_recording(pinning : dict, name : str, counter : int, nums : list[int]):
+    """ Assign the recording thread in the pinning configuration.
+
+    Args:
+        pinning (dict): Pinning configuration.
+        name (str): Name of the daq application.
+        counter (int): Current application number.
+        nums (list[int]): List of cpus to assign.
+    """
     pinning["daq_application"][name]["threads"][f"recording-{counter}.."] = cpu_list_to_str(nums)
     return
 
 
-def create_threads_numa(pinning : dict, cpus : cpu_checker, numa : int, name : str, thread_nums : dict[int], n_regions : int, numa_apps : list[int], max_cpus : dict[int]):
-    """
+def create_threads_numa(pinning : dict, cpus : CPUList, numa : int, name : str, thread_nums : dict[int], n_regions : int, numa_apps : list[int], max_cpus : dict[int]):
+    """ Create threads for the pinning file for a single numa.
+
+    Args:
+        pinning (dict): Pinning configuration.
+        cpus (CPUList): CPU list to make assignments from.
+        numa (int): Numa to make entry for.
+        name (str): Name of the daq application.
+        thread_nums (dict[int]): Number of threads to make per daq application.
+        n_regions (int): Number of regions in the numa (a cpu with hypercores would have n_regions = 1).
+        numa_apps (list[int]): Number of each daq_application for the numa.
+        max_cpus (dict[int]): Number of cpus to assign to each thread type.
+
     RULES:
     
     socket is equal to numa node
@@ -215,7 +373,7 @@ def main(args = argparse.Namespace):
 
     numa_dict = get_numa_info()[0]
 
-    #* this is just to emulate the numactl output for np04-srv-031
+    #* this is just to emulate the numactl output for np0x machines for testing purposes
     if args.fake is True:
         if args.readout_server == "np04-srv-031":
             fake_cpu_pinning = {
@@ -240,6 +398,7 @@ def main(args = argparse.Namespace):
 
 
     #! this should be read from the oks config
+    # create daq application names
     split = args.num_apps // n_numa
     app_names = []
     numa_apps = []
@@ -275,6 +434,7 @@ def main(args = argparse.Namespace):
     # how many cores should be assigned to a single thread (sharing rules are omitted here). Taken from np04-srv-031 pinning
     max_cpus = {k : getattr(args, k) for k in max_cpus_default}
 
+    # define the number of threads per APA
     # as done for np04-srv-031
     n_threads_APA = {
         "rte" : 4,
@@ -299,6 +459,8 @@ def main(args = argparse.Namespace):
 
     total_cpus_used = sum(v for v in max_cpus.values())
 
+    # define the cpu regions i.e. if the cpu has hypercores assigned to the different numas
+    # e.g. 0,32, 63,95, these will be defined as two distinct regions
     for numa in numa_dict:
         cpus = numa_dict[numa]["cpus"]
         min_stride = min([cpus[i] - cpus[i-1] for i in range(1, len(numa_dict[numa]["cpus"]))])
@@ -315,8 +477,6 @@ def main(args = argparse.Namespace):
         else:
             n_regions = 2
             numa_dict[numa]["regions"] = [cpus[:region_boundaries[0]], cpus[region_boundaries[0]:]]
-
-    print(f"headroom : {cores_per_app - total_cpus_used}")
 
     cpus_remaining = list(cpus_all)
     remaining_regions = [v["regions"] for v in numa_dict.values()]
@@ -339,7 +499,9 @@ def main(args = argparse.Namespace):
         remaining_regions[1][0].pop(0)
         remaining_regions[1][1].pop(0)
 
+    print(f"headroom per daq application: {cores_per_app - total_cpus_used}") # printout the available headroom per application after removing the primary core and hpyercore
 
+    # use the correct number of threads depending on the readout plane assembly
     if "np02" in args.readout_server:
         thread_nums = n_threads_CRP
     elif "np04" in args.readout_server:
@@ -347,14 +509,17 @@ def main(args = argparse.Namespace):
     else:
         raise Exception(f"do not know what readout plane is used for {args.readout_server}")
 
-    cpus = cpu_checker(cpus_remaining, remaining_regions)
+    # make the pinning configuration
+    cpus = CPUList(cpus_remaining, remaining_regions)
     for i in range(2):
         create_threads_numa(pinning, cpus, i, daq_app_names, thread_nums, n_regions, numa_apps, max_cpus)
 
+    # print created pinning and remaning cpus that were not assigned (excluding the first core and hypercore.)
     print(pinning)
     print("remaining cpus:")
     print(cpus.cpu_list_regions)
 
+    # write to a json file
     with open("cpupin-all-running.json", "w") as f:
         json.dump(pinning, f, indent = 4)
 
