@@ -7,11 +7,11 @@ Author: Shyam Bhuller
 Description: Create a cpu pinning file for a readout server.
 """
 import argparse
-import importlib
 import json
-from socket import gethostname
+import os
+import subprocess
 
-get_numa_info = getattr(importlib.import_module("auto-discovery"), "get_numa_info")
+from socket import gethostname
 
 from rich import print
 
@@ -122,6 +122,77 @@ class CPUList:
             return self.cpu_list_regions[numa][region][0]
         else:
             return self.cpu_list_regions[numa][0]
+
+
+def run_command(host : str, cmd : str) -> subprocess.CompletedProcess:
+    """ Run bash command on a given host.
+
+    Args:
+        host (str): Host name.
+        cmd (str): Command to run.
+
+    Returns:
+        subprocess.CompletedProcess: Output of command. 
+    """
+    return subprocess.run(['ssh', f'{os.environ["USER"]}@{host}', f'{cmd}'], capture_output = True)
+
+
+def parse_output(output: subprocess.CompletedProcess, separator : str = None) -> list | dict:
+    """ Get output from run_command and apply some simple formatting.
+
+    Args:
+        output (subprocess.CompletedProcess): Subprocess output.
+        separator (str, optional): String separator to split key-value pairs. Defaults to None.
+
+    Returns:
+        list | dict: _description_
+    """
+    output_lines = str(output.stdout)[2:].split("\\n")
+
+    if separator:
+        parsed = {}
+        for i in output_lines:
+            info = i.split(separator)
+            if len(info) > 1:
+                parsed[info[0]] = info[1].replace("  ", "")
+
+        return parsed
+    else:
+        return output_lines
+
+
+def get_numa_info(host : str) -> tuple[dict, int]:
+    """ Get CPU information needed to make the pinning file.
+
+    Args:
+        host (str): Server host name.
+
+    Returns:
+        tuple[dict, int]: Dictionary of values about cpu cores and cache size.
+    """
+    numa_dict = {}
+    numa_nodes = None
+
+    numactl_out = parse_output(run_command(host, "numactl -H"))
+    if numactl_out:
+        for numal in numactl_out:
+            if numal.find('cpus') != -1:
+                cpu_line = numal.split()
+                if cpu_line[1] not in numa_dict:
+                    numa_dict[cpu_line[1]] = {}
+                numa_dict[cpu_line[1]]['cpus'] = [int(cpu) for cpu in cpu_line[3:]]
+
+            for mem in ["size", "free"]:
+                if numal.find(mem) != -1:
+                    value = numal.split()
+                    numa_dict[value[1]][mem] = int(value[3])*1024 # convert to KB
+
+    numa_nodes = int(numactl_out[0].split()[1])
+
+    for nodeid in range(numa_nodes):
+        numa_dict[str(nodeid)]['devices'] = []
+
+    return numa_dict, numa_nodes
 
 
 def cpu_list_to_str(cpus : list[int]) -> str:
@@ -335,7 +406,7 @@ def create_threads_numa(pinning : dict, cpus : CPUList, numa : int, name : str, 
                 tp_procs_numa.append(cpus[cpus.first_available(numa, i)])
                 remaining -= 1
 
-    make_threads(pinning, numa, name, make_tpproc, {"nums" : tp_procs_numa})
+    make_threads(pinning, numa, name, make_tpproc, {"nums" : tp_procs_numa}, counter_offset = numa_apps[numa - 1] if numa > 0 else 0)
 
     # rtes
     make_threads(pinning, numa, name, make_rte, {"numa" : numa, "cpus" : cpus, "n_threads" : thread_nums["rte"], "n_regions" : n_regions, "n_cpus" : max_cpus["rte"]})
@@ -371,7 +442,7 @@ def main(args = argparse.Namespace):
 
     daq_app_names = f"ru{args.readout_server.replace('-', '')}eth"
 
-    numa_dict = get_numa_info()[0]
+    numa_dict = get_numa_info(args.readout_server)[0]
 
     #* this is just to emulate the numactl output for np0x machines for testing purposes
     if args.fake is True:
