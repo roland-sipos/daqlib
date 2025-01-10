@@ -550,7 +550,7 @@ def main(args = argparse.Namespace):
             numa_dict[numa]["regions"] = [cpus[:region_boundaries[0]], cpus[region_boundaries[0]:]]
 
     cpus_remaining = list(cpus_all)
-    remaining_regions = [v["regions"] for v in numa_dict.values()]
+    remaining_regions = [list(v["regions"]) for v in numa_dict.values()]
 
     # remove first thread and hypercore on each numa node
     if n_regions == 1:
@@ -580,9 +580,10 @@ def main(args = argparse.Namespace):
     else:
         raise Exception(f"do not know what readout plane is used for {args.readout_server}")
 
-    # make the pinning configuration
-    cpus = CPUList(cpus_remaining, remaining_regions)
-    for i in range(2):
+    # make the pinning configuration for running with the DAQ
+    cpus = CPUList(list(cpus_remaining), list(remaining_regions))
+
+    for i in range(n_numa):
         create_threads_numa(pinning, cpus, i, daq_app_names, thread_nums, n_regions, numa_apps, max_cpus)
 
     # print created pinning and remaning cpus that were not assigned (excluding the first core and hypercore.)
@@ -590,11 +591,21 @@ def main(args = argparse.Namespace):
     print("remaining cpus:")
     print(cpus.cpu_list_regions)
 
-    # write to a json file
-    with open("cpupin-all-running.json", "w") as f:
-        json.dump(pinning, f, indent = 4)
 
-    print("pinning has been written to cpupin-all-running.json")
+    cpus = CPUList(list(cpus_all), [v["regions"] for v in numa_dict.values()])
+    pinning_pre_conf = dict(pinning)
+
+    app_names = list(pinning["daq_application"].keys())
+    for i in range(len(numa_apps)):
+        for j in range(numa_apps[i]):
+            pinning_pre_conf["daq_application"][app_names[i + j]]["parent"] = cpu_list_to_str(cpus.cpu_list_regions[i])
+
+    # write to a json file
+    for p, n in zip([pinning, pinning_pre_conf],["cpupin-all-running.json", "cpupin-all.json"]):
+        with open(n, "w") as f:
+            json.dump(p, f, indent = 4)
+
+        print(f"pinning has been written to {n}")
 
     return
 
