@@ -7,7 +7,8 @@ daq_setup_environment()
 
 find_package(appfwk REQUIRED)
 find_package(hdf5libs REQUIRED)
-find_package(readoutlibs REQUIRED)
+# find_package(readoutlibs REQUIRED)
+find_package(datahandlinglibs REQUIRED)
 set(BOOST_LIBS Boost::iostreams ${Boost_SYSTEM_LIBRARY} ${Boost_THREAD_LIBRARY} ${Boost_LIBRARIES})
 
 option(WITH_SNBT_EXAMPLES "Build SNB transfer examples" ON)
@@ -24,11 +25,11 @@ if(WITH_SNBT_EXAMPLES)
     #$ENV{LIBTORRENT_LIB}/libtorrent-rasterbar.so
   )
   message(INFO "Torrent lib is: " ${LIBTORRENT_LIBRARIES})
-  daq_add_library(*.cpp LINK_LIBRARIES ${LIBTORRENT_LIBRARIES} appfwk::appfwk readoutlibs::readoutlibs hdf5libs::hdf5libs ${BOOST_LIBS})
+  daq_add_library(*.cpp LINK_LIBRARIES ${LIBTORRENT_LIBRARIES} appfwk::appfwk datahandlinglibs::datahandlinglibs hdf5libs::hdf5libs ${BOOST_LIBS})
   target_include_directories(rubberdaq PUBLIC $ENV{LIBTORRENT_INC})
   daq_add_application(rubberdaq_test_snb_torrent_app test_snb_torrent_app.cxx TEST LINK_LIBRARIES rubberdaq)
 else()
-  daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk readoutlibs::readoutlibs hdf5libs::hdf5libs ${BOOST_LIBS})
+  daq_add_library(*.cpp LINK_LIBRARIES appfwk::appfwk datahandlinglibs::datahandlinglibs hdf5libs::hdf5libs ${BOOST_LIBS})
 endif()
 
 daq_add_plugin( FooDAQModule duneDAQModule LINK_LIBRARIES rubberdaq )
