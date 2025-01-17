@@ -7,6 +7,7 @@
 
 #include "appfwk/DAQModule.hpp"
 //#include "appfwk/DAQSource.hpp"
+#include "appfwk/ModuleConfiguration.hpp"
 
 #include "Foo.hpp"
 
@@ -42,7 +43,7 @@ public:
   FooDAQModule& operator=(FooDAQModule&&) =
     delete; ///< FooDAQModule is not move-assignable
 
-  void init(const data_t &) override;
+  void init(std::shared_ptr<appfwk::ModuleConfiguration>) override;
 
 private:
 

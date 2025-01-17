@@ -32,7 +32,7 @@ FooDAQModule::FooDAQModule(const std::string& name)
   register_command("stop", &FooDAQModule::do_stop);
 }
 
-void FooDAQModule::init(const data_t &)
+void FooDAQModule::init(std::shared_ptr<appfwk::ModuleConfiguration>)
 {
 
 }

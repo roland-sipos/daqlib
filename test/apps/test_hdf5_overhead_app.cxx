@@ -12,15 +12,15 @@
 #include "libtorrent/torrent_info.hpp"
 #include "libtorrent/create_torrent.hpp"
 
-#include <readoutlibs/ReadoutTypes.hpp>
-#include <readoutlibs/utils/BufferedFileWriter.hpp>
+#include <datahandlinglibs/ReadoutTypes.hpp>
+#include <datahandlinglibs/utils/BufferedFileWriter.hpp>
 
 #include <string>
 #include <iostream>
 #include <sstream>
 #include <fstream>
 
-using namespace dunedaq::readoutlibs;
+using namespace dunedaq::datahandlinglibs;
 
 int
 main(int argc, char* argv[])
@@ -32,7 +32,7 @@ main(int argc, char* argv[])
   }
   //remove(argv[1]); // NOLINT
 
-  dunedaq::readoutlibs::types::DUMMY_FRAME_STRUCT chunk;
+  dunedaq::datahandlinglibs::types::DUMMY_FRAME_STRUCT chunk;
   for (uint i = 0; i < sizeof(chunk); ++i) {
     (reinterpret_cast<char*>(&chunk))[i] = static_cast<char>(i); // NOLINT
   }
