@@ -468,12 +468,14 @@ def fill_pinning(pinning : dict, cpus : CPUList, max_cpus : dict[int], n_regions
         ccp_cores = None
         rawproc_cores = None
         for t in pinning["daq_application"][apps]["threads"]:
-            if "tpproc" in t:
+            print(cpus.cpu_list_regions)
+            if ("tpproc" in t) or ("tpset" in t):
                 pinning["daq_application"][apps]["threads"][t] = cpu_list_to_str(assign_cpus_tpproc(n_regions, cpus, numa, max_cpus["tpproc"]))
             elif "rte-worker" in t:
                 pinning["daq_application"][apps]["threads"][t] = str(cpus[int(t.split("-")[-1])])
-            elif "rawproc" in t:
-                rawproc_cores = cpu_list_to_str(assign_cpus_rawproc(n_regions, cpus, numa, max_cpus["rawproc"]))
+            elif ("rawproc" in t) or ("postproc" in t):
+                if rawproc_cores is None:
+                    rawproc_cores = cpu_list_to_str(assign_cpus_rawproc(n_regions, cpus, numa, max_cpus["rawproc"]))
                 pinning["daq_application"][apps]["threads"][t] = rawproc_cores
             elif ("cleanup" in t) or ("consumer" in t) or ("periodic" in t):
                 if ccp_cores is None: ccp_cores = cpu_list_to_str(assign_cpus_ccp(n_regions, cpus, numa, max_cpus["ccp"]))
@@ -481,7 +483,12 @@ def fill_pinning(pinning : dict, cpus : CPUList, max_cpus : dict[int], n_regions
             elif "recording" in t:
                 pinning["daq_application"][apps]["threads"][t] = cpu_list_to_str(assign_cpus_recording(n_regions, cpus, numa, max_cpus["recording"]))
             else:
-                raise Exception(f"do not know how to assign cores to thread {t}")
+                raise Exception(f"do not know how to assign cores to thread {t}, assigning one core only")
+                # pinning["daq_application"][apps]["threads"][t] = cpu_list_to_str(cpus.first_available(numa))
+
+        print(ccp_cores)
+        print(rawproc_cores)
+
         pinning["daq_application"][apps]["parent"] = ",".join([ccp_cores, rawproc_cores])
 
     return pinning
@@ -644,7 +651,7 @@ def main(args = argparse.Namespace):
     print(f"headroom per daq application: {cores_per_app - total_cpus_used}") # printout the available headroom per application after removing the primary core and hpyercore
 
     # make the pinning configuration for running with the DAQ
-    cpus = CPUList(list(cpus_remaining), list(remaining_regions))
+    cpus = CPUList(copy.deepcopy(cpus_remaining), copy.deepcopy(remaining_regions))
 
     if args.template:
         fill_pinning(pinning, cpus, max_cpus, n_regions)
@@ -657,13 +664,13 @@ def main(args = argparse.Namespace):
     print("remaining cpus:")
     print(cpus.cpu_list_regions)
 
-    cpus = CPUList(list(cpus_all), [v["regions"] for v in numa_dict.values()])
+    cpus = CPUList(copy.deepcopy(cpus_remaining), copy.deepcopy(remaining_regions))
     pinning_pre_conf = copy.deepcopy(pinning)
 
     app_names = list(pinning["daq_application"].keys())
     for i in range(len(numa_apps)):
         for j in range(numa_apps[i]):
-            pinning_pre_conf["daq_application"][app_names[i + j]]["parent"] = cpu_list_to_str(cpus.cpu_list_regions[i])
+            pinning_pre_conf["daq_application"][app_names[i + j]]["parent"] = cpu_list_to_str([j for i in cpus.cpu_list_regions[i] for j in i])
 
     # write to a json file
     for p, n in zip([pinning, pinning_pre_conf],["cpupin-all-running.json", "cpupin-all.json"]):
